@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Al Ikhlas</title>
+    <title>Al Ikhlas - Qibla and Prayer Time</title>
     <style>
         :root {
             --primary-color: #00ffcc;
-            --secondary-color: #1de9b6;
+            --glow-color: rgba(0, 255, 204, 0.7);
             --bg-dark: #0f1419;
             --bg-light: #1e2529;
             --text-light: #ffffff;
             --text-dim: #b0b0b0;
+            --arrow-color: #00ffcc; /* New variable for arrow color */
+            --arrow-glow: 0 0 10px rgba(0, 255, 204, 0.8); /* New glow effect */
         }
         
         * {
@@ -55,7 +57,12 @@
             color: var(--primary-color);
             letter-spacing: 1px;
         }
-        
+        h3 {
+            justify-content: center;
+            color: var(--primary-color);
+            letter-spacing: 1px;
+        }
+
         .location-info {
             display: flex;
             flex-direction: column;
@@ -78,16 +85,18 @@
         .compass-container {
             position: relative;
             margin: 20px auto;
-            width: 250px;
-            height: 250px;
+            width: 260px;
+            height: 260px;
         }
         
         #compassCanvas {
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            border: 2px solid var(--primary-color);
-            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+            border: 3px solid var(--primary-color);
+            box-shadow: 0 0 15px var(--glow-color),
+                        inset 0 0 15px var(--glow-color);
+            background: rgba(30, 37, 41, 0.5);
         }
         
         .qibla-info {
@@ -98,6 +107,7 @@
             padding: 12px 15px;
             background: rgba(0, 255, 204, 0.05);
             border-radius: 8px;
+            border: 1px solid rgba(0, 255, 204, 0.2);
         }
         
         .direction-display {
@@ -107,8 +117,9 @@
         }
         
         .direction-arrow {
-            font-size: 24px;
-            transition: transform 0.3s ease;
+            font-size: 28px;
+            transition: transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+            color: var(--primary-color);
         }
         
         .turn-instruction {
@@ -118,7 +129,11 @@
         
         .qibla-angle {
             font-size: 16px;
-            color: var(--text-dim);
+            color: var(--text-light);
+            background: rgba(0, 255, 204, 0.1);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 600;
         }
         
         .prayer-times {
@@ -135,6 +150,7 @@
             padding: 12px 15px;
             display: flex;
             justify-content: space-between;
+            border: 1px solid rgba(0, 255, 204, 0.1);
         }
         
         .prayer-name {
@@ -159,7 +175,7 @@
             color: var(--primary-color);
             border: 1px solid rgba(0, 255, 204, 0.3);
             border-radius: 20px;
-            padding: 8px 16px;
+            padding: 10px 20px;
             font-size: 14px;
             margin-top: 15px;
             cursor: pointer;
@@ -183,21 +199,12 @@
             padding: 15px 0;
             margin-top: auto;
         }
-        
-        footer a {
-            color: var(--primary-color);
-            text-decoration: none;
-            transition: all 0.3s ease;
-        }
-        
-        footer a:hover {
-            text-shadow: 0 0 5px rgba(0, 255, 204, 0.5);
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Al Ikhlas</h1>
+        <h3>Qibla and Prayer Time</h3>
         
         <div class="location-info">
             <span id="cityName">Locating your position...</span>
@@ -209,13 +216,13 @@
         <button id="compassPermissionBtn" class="permission-btn" style="display: none;">Enable Compass</button>
         
         <div class="compass-container">
-            <canvas id="compassCanvas" width="250" height="250"></canvas>
+            <canvas id="compassCanvas" width="260" height="260"></canvas>
         </div>
         
         <div class="qibla-info">
             <div class="direction-display">
                 <span class="direction-arrow" id="directionArrow">↑</span>
-                <span class="turn-instruction" id="turnInstruction">Point towards Mecca</span>
+                <span class="turn-instruction" id="turnInstruction">Point towards Qibla</span>
             </div>
             <div class="qibla-angle" id="qiblaAngle">0°</div>
         </div>
@@ -256,6 +263,8 @@
         let orientationId = null;
         let animationFrameId = null;
         let compassPermissionGranted = false;
+        let prayerTimings = {};
+        let prayerCheckInterval = null;
         
         // Initialize the app
         function init() {
@@ -347,67 +356,45 @@
             
             ctx.clearRect(0, 0, compassCanvas.width, compassCanvas.height);
             
-            // Draw compass circle
+            // Draw compass border with glow (outer only)
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.strokeStyle = 'var(--primary-color)';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
             ctx.stroke();
             
-            // Draw degree markers
-            ctx.strokeStyle = 'rgba(0, 255, 204, 0.5)';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 36; i++) {
-                const angle = i * 10 * Math.PI / 180;
-                const innerLength = i % 9 === 0 ? 0.15 : (i % 3 === 0 ? 0.1 : 0.05);
-                
-                ctx.beginPath();
-                ctx.moveTo(
-                    centerX + Math.sin(angle) * radius,
-                    centerY - Math.cos(angle) * radius
-                );
-                ctx.lineTo(
-                    centerX + Math.sin(angle) * radius * (1 - innerLength),
-                    centerY - Math.cos(angle) * radius * (1 - innerLength)
-                );
-                ctx.stroke();
-            }
-            
-            // Draw cardinal directions (changed to white for visibility)
-            ctx.font = 'bold 14px sans-serif';
+            // Draw Qibla emoji at the top
+            ctx.font = '28px serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#ffffff'; // Changed from var(--primary-color) to white
+            ctx.fillStyle = 'var(--primary-color)';
+            ctx.fillText('🕋', centerX, centerY - radius * 0.8);
             
-            const cardinals = ['N', 'E', 'S', 'W'];
-            for (let i = 0; i < 4; i++) {
-                const angle = i * Math.PI / 2;
-                const x = centerX + Math.sin(angle) * (radius * 0.8);
-                const y = centerY - Math.cos(angle) * (radius * 0.8);
-                ctx.fillText(cardinals[i], x, y);
-            }
-            
-            // Draw Qibla direction arrow (fixed orientation)
+            // Draw Qibla direction arrow with improved visibility
             if (qiblaDirection) {
                 const qiblaRad = (qiblaDirection - currentHeading) * Math.PI / 180;
                 const arrowLength = radius * 0.7;
                 const arrowEndX = centerX + Math.sin(qiblaRad) * arrowLength;
                 const arrowEndY = centerY - Math.cos(qiblaRad) * arrowLength;
                 
-                // Arrow shaft
+                // Arrow shaft with glow effect
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
                 ctx.lineTo(arrowEndX, arrowEndY);
-                ctx.strokeStyle = 'var(--primary-color)';
-                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#00ffcc'; // Brighter color
+                ctx.shadowColor = 'rgba(0, 255, 204, 0.8)';
                 ctx.shadowBlur = 10;
-                ctx.shadowColor = 'var(--primary-color)';
+                ctx.lineWidth = 6; // Thicker line
+                ctx.lineCap = 'round';
                 ctx.stroke();
+                
+                // Reset shadow for other drawings
+                ctx.shadowColor = 'transparent';
                 ctx.shadowBlur = 0;
                 
-                // Arrow head (fixed orientation)
-                const headLength = 15;
-                const headAngle = Math.PI / 6; // 30 degrees for arrowhead
+                // Arrow head with improved visibility
+                const headLength = 30; // Larger arrow head
+                const headAngle = Math.PI / 4.5;
                 ctx.beginPath();
                 ctx.moveTo(arrowEndX, arrowEndY);
                 ctx.lineTo(
@@ -419,13 +406,17 @@
                     arrowEndY + headLength * Math.cos(qiblaRad + headAngle)
                 );
                 ctx.closePath();
-                ctx.fillStyle = 'var(--primary-color)';
+                ctx.fillStyle = '#00ffcc'; // Brighter color
+                ctx.shadowColor = 'rgba(0, 255, 204, 0.8)';
+                ctx.shadowBlur = 10;
                 ctx.fill();
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
             }
             
-            // Draw center circle
+            // Draw subtle center point
             ctx.beginPath();
-            ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, 4, 0, Math.PI * 2); // Slightly larger center point
             ctx.fillStyle = 'var(--primary-color)';
             ctx.fill();
         }
@@ -445,13 +436,16 @@
             // Update arrow direction
             directionArrow.style.transform = `rotate(${displayAngle}deg)`;
             
-            // Determine turn direction (now correctly oriented)
+            // Determine turn direction
             if (displayAngle === 0 || displayAngle === 360) {
-                turnInstruction.textContent = "Facing Mecca";
+                turnInstruction.textContent = "Facing Qibla 🕋";
+                turnInstruction.style.color = "var(--primary-color)";
             } else if (displayAngle > 180) {
-                turnInstruction.textContent = "Turn Left";
+                turnInstruction.textContent = "← Turn Left to Qibla";
+                turnInstruction.style.color = "#ffffff";
             } else {
-                turnInstruction.textContent = "Turn Right";
+                turnInstruction.textContent = "Turn Right to Qibla →";
+                turnInstruction.style.color = "#ffffff";
             }
         }
         
@@ -518,8 +512,10 @@
                 const data = await response.json();
                 
                 if (data.code === 200 && data.data?.timings) {
-                    displayPrayerTimes(data.data.timings);
+                    prayerTimings = data.data.timings;
+                    displayPrayerTimes(prayerTimings);
                     clearStatus();
+                    startPrayerTimeChecker();
                 } else {
                     throw new Error("Invalid prayer times data");
                 }
@@ -550,6 +546,56 @@
             });
             
             prayerTimesEl.innerHTML = html;
+        }
+        
+        function startPrayerTimeChecker() {
+            // Clear any existing interval
+            if (prayerCheckInterval) {
+                clearInterval(prayerCheckInterval);
+            }
+            
+            // Check every minute for prayer times
+            prayerCheckInterval = setInterval(checkForPrayerTime, 60000);
+            
+            // Also check immediately
+            checkForPrayerTime();
+        }
+        
+        function checkForPrayerTime() {
+            const now = new Date();
+            const currentTime = formatTime(now);
+            
+            // Check each prayer time
+            for (const prayer in prayerTimings) {
+                if (['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].includes(prayer)) {
+                    const prayerTime = prayerTimings[prayer];
+                    
+                    // Check if current time matches prayer time (within 1 minute)
+                    if (timesMatch(currentTime, prayerTime)) {
+                        showPrayerNotification(prayer, prayerTime);
+                        return; // Only show one notification at a time
+                    }
+                }
+            }
+        }
+        
+        function formatTime(date) {
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+        
+        function timesMatch(time1, time2) {
+            // Simple comparison of HH:MM strings
+            return time1 === time2;
+        }
+        
+        function showPrayerNotification(prayerName, prayerTime) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(`Time for ${prayerName}`, {
+                    body: `It's time to pray ${prayerName} (${prayerTime})`
+                });
+            }
         }
         
         function handlePositionError(error) {
@@ -591,6 +637,7 @@
             if (watchId) navigator.geolocation.clearWatch(watchId);
             if (orientationId) window.removeEventListener('deviceorientation', handleOrientation);
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (prayerCheckInterval) clearInterval(prayerCheckInterval);
         });
         
         window.addEventListener('load', init);
