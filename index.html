@@ -3,45 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Al Ikhlas - Qibla and Prayer Time</title>
+    <title>Al Ikhlas - Prayer Time</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Al Ikhlas</h1>
-        <h3>Qibla and Prayer Time</h3>
-        
-        <div class="location-info">
-            <span id="cityName">Locating your position...</span>
-            <span id="accuracyIndicator"></span>
-        </div>
-        
-        <div id="statusMessage"></div>
-        
-        <button id="compassPermissionBtn" class="permission-btn" style="display: none;">Enable Compass</button>
-        
-        <div class="compass-container">
-            <canvas id="compassCanvas" width="260" height="260"></canvas>
-        </div>
-        
-        <div class="qibla-info">
-            <div class="direction-display">
-                <span class="direction-arrow" id="directionArrow">↑</span>
-                <span class="turn-instruction" id="turnInstruction">Point towards Qibla</span>
-            </div>
-            <div class="qibla-angle" id="qiblaAngle">0°</div>
-        </div>
-        
-        <div class="prayer-times" id="prayerTimes">
-            <!-- Prayer times will be inserted here -->
-        </div>
-        
-        <button id="refreshBtn">Refresh Location</button>
+<div class="container">
+    <h1>Al Ikhlas</h1>
+    <h3>Prayer Time</h3>
+    <div class="location-info">
+        <span id="cityName">Locating your position...</span>
+        <span id="accuracyIndicator"></span>
     </div>
-
-    <footer>Created with 💚</footer>
-
-    <script src="script.js"></script>
-
+    <div id="statusMessage"></div>
+    
+    <!-- Today's Prayer Times -->
+    <div class="section-header">
+        <span>Today's Prayer Times</span>
+    </div>
+    <div class="prayer-times" id="prayerTimes">
+        <!-- Prayer times will be inserted here -->
+    </div>
+    
+    <!-- Weekly Prayer Times (Collapsible) -->
+    <div class="collapsible-section">
+        <div class="collapsible-header">
+            <span>Weekly Prayer Times</span>
+            <span class="collapse-icon">+</span>
+        </div>
+        <div class="collapsible-content">
+            <div class="weekly-prayer-times" id="weeklyPrayerTimes">
+                <!-- Weekly prayer times will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Islamic Events (Collapsible) -->
+    <div class="collapsible-section">
+        <div class="collapsible-header">
+            <span>Islamic Events</span>
+            <span class="collapse-icon">+</span>
+        </div>
+        <div class="collapsible-content">
+            <div class="islamic-events" id="islamicEvents">
+                <!-- Islamic events will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <button id="refreshBtn">Refresh Location</button>
+</div>
+<footer>Created with 💚</footer>
+<script src="script.js"></script>
 </body>
 </html>

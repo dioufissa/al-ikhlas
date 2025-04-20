@@ -1,225 +1,71 @@
 // Constants
-const KAABA_LAT = 21.422487;
-const KAABA_LON = 39.826206;
 const SMOOTHING_FACTOR = 0.15;
 
 // DOM Elements
-const compassCanvas = document.getElementById('compassCanvas');
-const ctx = compassCanvas.getContext('2d');
 const cityNameEl = document.getElementById('cityName');
 const accuracyIndicatorEl = document.getElementById('accuracyIndicator');
-const directionArrow = document.getElementById('directionArrow');
-const turnInstruction = document.getElementById('turnInstruction');
-const qiblaAngle = document.getElementById('qiblaAngle');
 const prayerTimesEl = document.getElementById('prayerTimes');
 const statusMessageEl = document.getElementById('statusMessage');
 const refreshBtn = document.getElementById('refreshBtn');
-const compassPermissionBtn = document.getElementById('compassPermissionBtn');
+const weeklyPrayerTimesEl = document.getElementById('weeklyPrayerTimes');
+const islamicEventsEl = document.getElementById('islamicEvents'); 
 
 // State variables
-let currentHeading = 0;
-let qiblaDirection = 0;
-let lastHeading = null;
-let watchId = null;
-let orientationId = null;
-let animationFrameId = null;
-let compassPermissionGranted = false;
 let prayerTimings = {};
 let prayerCheckInterval = null;
+let weeklyPrayerData = [];
+let currentPosition = null;
 
 // Initialize the app
 function init() {
-    setupCanvas();
+    setupCollapsibles();
     
     if (!navigator.geolocation) {
         showError("Geolocation is not supported by your browser");
         return;
     }
     
-    if (window.DeviceOrientationEvent) {
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            compassPermissionBtn.style.display = 'block';
-            compassPermissionBtn.addEventListener('click', requestCompassPermission);
-        } else {
-            startCompass();
-        }
-    } else {
-        showError("Device orientation not supported - compass won't work");
-    }
-    
     refreshBtn.addEventListener('click', refreshLocation);
     refreshLocation();
-    animateCompass();
-}
-
-function setupCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-    const rect = compassCanvas.getBoundingClientRect();
     
-    compassCanvas.width = rect.width * dpr;
-    compassCanvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    displayIslamicEvents();
 }
 
-function requestCompassPermission() {
-    DeviceOrientationEvent.requestPermission()
-        .then(response => {
-            if (response === 'granted') {
-                compassPermissionGranted = true;
-                compassPermissionBtn.style.display = 'none';
-                startCompass();
+function setupCollapsibles() {
+    document.querySelectorAll('.collapsible-header').forEach(header => {
+        header.addEventListener('click', function() {
+            const content = this.nextElementSibling;
+            const icon = this.querySelector('.collapse-icon');
+            
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+                icon.textContent = '+';
             } else {
-                showError("Compass requires orientation permission");
+                content.style.maxHeight = content.scrollHeight + "px";
+                icon.textContent = '-';
             }
-        })
-        .catch(error => {
-            console.error("Compass permission error:", error);
-            showError("Failed to get compass permission");
+            
+            // Close other collapsibles
+            document.querySelectorAll('.collapsible-content').forEach(otherContent => {
+                if (otherContent !== content && otherContent.style.maxHeight) {
+                    otherContent.style.maxHeight = null;
+                    otherContent.previousElementSibling.querySelector('.collapse-icon').textContent = '+';
+                }
+            });
         });
-}
-
-function startCompass() {
-    if (orientationId) {
-        window.removeEventListener('deviceorientation', handleOrientation);
-    }
-    
-    window.addEventListener('deviceorientation', handleOrientation);
-    orientationId = true;
-}
-
-function handleOrientation(event) {
-    if (event.alpha !== null) {
-        let newHeading = event.alpha;
-        
-        if (event.webkitCompassHeading !== undefined) {
-            newHeading = event.webkitCompassHeading;
-        }
-        
-        if (lastHeading === null) {
-            currentHeading = newHeading;
-        } else {
-            currentHeading = lastHeading + SMOOTHING_FACTOR * (newHeading - lastHeading);
-        }
-        lastHeading = newHeading;
-    }
-}
-
-function animateCompass() {
-    drawCompass();
-    updateDirectionDisplay();
-    animationFrameId = requestAnimationFrame(animateCompass);
-}
-
-function drawCompass() {
-    const centerX = compassCanvas.width / (window.devicePixelRatio || 1) / 2;
-    const centerY = compassCanvas.height / (window.devicePixelRatio || 1) / 2;
-    const radius = Math.min(centerX, centerY) * 0.9;
-    
-    ctx.clearRect(0, 0, compassCanvas.width, compassCanvas.height);
-    
-    // Draw compass border with glow (outer only)
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = 'var(--primary-color)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    
-    // Draw Qibla emoji at the top
-    ctx.font = '28px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'var(--primary-color)';
-    ctx.fillText('🕋', centerX, centerY - radius * 0.8);
-    
-    // Draw Qibla direction arrow with improved visibility
-    if (qiblaDirection) {
-        const qiblaRad = (qiblaDirection - currentHeading) * Math.PI / 180;
-        const arrowLength = radius * 0.7;
-        const arrowEndX = centerX + Math.sin(qiblaRad) * arrowLength;
-        const arrowEndY = centerY - Math.cos(qiblaRad) * arrowLength;
-        
-        // Arrow shaft with glow effect
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(arrowEndX, arrowEndY);
-        ctx.strokeStyle = '#00ffcc'; // Brighter color
-        ctx.shadowColor = 'rgba(0, 255, 204, 0.8)';
-        ctx.shadowBlur = 10;
-        ctx.lineWidth = 6; // Thicker line
-        ctx.lineCap = 'round';
-        ctx.stroke();
-        
-        // Reset shadow for other drawings
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        
-        // Arrow head with improved visibility
-        const headLength = 30; // Larger arrow head
-        const headAngle = Math.PI / 4.5;
-        ctx.beginPath();
-        ctx.moveTo(arrowEndX, arrowEndY);
-        ctx.lineTo(
-            arrowEndX - headLength * Math.sin(qiblaRad - headAngle),
-            arrowEndY + headLength * Math.cos(qiblaRad - headAngle)
-        );
-        ctx.lineTo(
-            arrowEndX - headLength * Math.sin(qiblaRad + headAngle),
-            arrowEndY + headLength * Math.cos(qiblaRad + headAngle)
-        );
-        ctx.closePath();
-        ctx.fillStyle = '#00ffcc'; // Brighter color
-        ctx.shadowColor = 'rgba(0, 255, 204, 0.8)';
-        ctx.shadowBlur = 10;
-        ctx.fill();
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-    }
-    
-    // Draw subtle center point
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 4, 0, Math.PI * 2); // Slightly larger center point
-    ctx.fillStyle = 'var(--primary-color)';
-    ctx.fill();
-}
-
-function updateDirectionDisplay() {
-    if (!qiblaDirection) return;
-    
-    // Calculate the relative angle (0-360) from current heading to Qibla
-    let relativeAngle = (qiblaDirection - currentHeading + 360) % 360;
-    
-    // Fix the left/right inversion by mirroring the angle
-    relativeAngle = 360 - relativeAngle;
-    
-    const displayAngle = Math.round(relativeAngle);
-    qiblaAngle.textContent = `${displayAngle}°`;
-    
-    // Update arrow direction
-    directionArrow.style.transform = `rotate(${displayAngle}deg)`;
-    
-    // Determine turn direction
-    if (displayAngle === 0 || displayAngle === 360) {
-        turnInstruction.textContent = "Facing Qibla 🕋";
-        turnInstruction.style.color = "var(--primary-color)";
-    } else if (displayAngle > 180) {
-        turnInstruction.textContent = "← Turn Left to Qibla";
-        turnInstruction.style.color = "#ffffff";
-    } else {
-        turnInstruction.textContent = "Turn Right to Qibla →";
-        turnInstruction.style.color = "#ffffff";
-    }
+    });
 }
 
 function updateLocation(position) {
     const { latitude, longitude, accuracy } = position.coords;
+    currentPosition = { latitude, longitude };
     
-    // Update location info separately
     cityNameEl.textContent = "Locating...";
     accuracyIndicatorEl.textContent = `Accuracy: ±${Math.round(accuracy)} meters`;
     
     reverseGeocode(latitude, longitude);
-    calculateQiblaDirection(latitude, longitude);
     fetchPrayerTimes(latitude, longitude);
+    fetchWeeklyPrayerTimes(latitude, longitude);
 }
 
 async function reverseGeocode(lat, lon) {
@@ -233,7 +79,7 @@ async function reverseGeocode(lat, lon) {
         if (data.address) {
             const address = data.address;
             locationName = address.city || address.town || address.village || 
-                            address.county || address.state || address.country;
+                          address.county || address.state || address.country;
         }
         
         cityNameEl.textContent = locationName;
@@ -243,29 +89,14 @@ async function reverseGeocode(lat, lon) {
     }
 }
 
-function calculateQiblaDirection(latitude, longitude) {
-    const latRad = latitude * Math.PI / 180;
-    const lonRad = longitude * Math.PI / 180;
-    const kaabaLatRad = KAABA_LAT * Math.PI / 180;
-    const kaabaLonRad = KAABA_LON * Math.PI / 180;
-    
-    const y = Math.sin(kaabaLonRad - lonRad);
-    const x = Math.cos(latRad) * Math.tan(kaabaLatRad) - 
-                Math.sin(latRad) * Math.cos(kaabaLonRad - lonRad);
-    let bearing = Math.atan2(y, x) * 180 / Math.PI;
-    
-    if (bearing < 0) bearing += 360;
-    
-    qiblaDirection = bearing;
-}
-
 async function fetchPrayerTimes(latitude, longitude) {
     const date = new Date();
     const formattedDate = `${date.getDate()}-${date.getMonth()+1}-${date.getFullYear()}`;
     
     try {
         const response = await fetch(
-            `https://api.aladhan.com/v1/timings/${formattedDate}?latitude=${latitude}&longitude=${longitude}&method=2`
+            `https://api.aladhan.com/v1/timings/${formattedDate}?latitude=${latitude}&longitude=${longitude}&method=2`,
+            { signal: AbortSignal.timeout(10000) }
         );
         
         if (!response.ok) throw new Error(`API error: ${response.status}`);
@@ -282,7 +113,15 @@ async function fetchPrayerTimes(latitude, longitude) {
         }
     } catch (error) {
         console.error("Prayer times error:", error);
-        showError("Couldn't fetch prayer times");
+        showError("Couldn't fetch prayer times. Please check your internet connection or try again later.");
+        displayPrayerTimes({
+            Fajr: "N/A",
+            Sunrise: "N/A",
+            Dhuhr: "N/A",
+            Asr: "N/A",
+            Maghrib: "N/A",
+            Isha: "N/A"
+        });
     }
 }
 
@@ -309,16 +148,244 @@ function displayPrayerTimes(timings) {
     prayerTimesEl.innerHTML = html;
 }
 
+async function fetchWeeklyPrayerTimes(latitude, longitude) {
+    try {
+        const today = new Date();
+        weeklyPrayerData = [];
+        
+        for (let i = 0; i < 7; i++) {
+            const date = new Date();
+            date.setDate(today.getDate() + i);
+            const formattedDate = `${date.getDate()}-${date.getMonth()+1}-${date.getFullYear()}`;
+            
+            const response = await fetch(
+                `https://api.aladhan.com/v1/timings/${formattedDate}?latitude=${latitude}&longitude=${longitude}&method=2`,
+                { signal: AbortSignal.timeout(10000) }
+            );
+            
+            if (!response.ok) throw new Error(`API error: ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.code === 200 && data.data?.timings) {
+                const dayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
+                const dateStr = new Intl.DateTimeFormat('en-US', { 
+                    day: 'numeric', 
+                    month: 'short'
+                }).format(date);
+                
+                weeklyPrayerData.push({
+                    day: dayName,
+                    date: dateStr,
+                    timings: data.data.timings
+                });
+            } else {
+                throw new Error("Invalid prayer times data");
+            }
+        }
+        
+        displayWeeklyPrayerTimes();
+    } catch (error) {
+        console.error("Weekly prayer times error:", error);
+        showError("Couldn't fetch weekly prayer times. Please check your internet connection or try again later.");
+        weeklyPrayerTimesEl.innerHTML = '<div class="prayer-time">Weekly times unavailable</div>';
+    }
+}
+
+function displayWeeklyPrayerTimes() {
+    if (!weeklyPrayerData || weeklyPrayerData.length === 0) {
+        weeklyPrayerTimesEl.innerHTML = '<div class="prayer-time">Weekly times unavailable</div>';
+        updateCollapsibleHeight(weeklyPrayerTimesEl);
+        return;
+    }
+    
+    let html = '';
+    
+    weeklyPrayerData.forEach((dayData, index) => {
+        const isToday = index === 0;
+        const todayClass = isToday ? 'today' : '';
+        
+        html += `
+            <div class="weekly-prayer-day ${todayClass}">
+                <div class="day-header">
+                    <div class="day-name">${dayData.day}</div>
+                    <div class="day-date">${dayData.date}</div>
+                </div>
+                <div class="day-prayers">
+                    <div class="prayer-time-weekly">
+                        <span class="prayer-name">Fajr</span>
+                        <span class="prayer-value">${dayData.timings.Fajr}</span>
+                    </div>
+                    <div class="prayer-time-weekly">
+                        <span class="prayer-name">Sunrise</span>
+                        <span class="prayer-value">${dayData.timings.Sunrise}</span>
+                    </div>
+                    <div class="prayer-time-weekly">
+                        <span class="prayer-name">Dhuhr</span>
+                        <span class="prayer-value">${dayData.timings.Dhuhr}</span>
+                    </div>
+                    <div class="prayer-time-weekly">
+                        <span class="prayer-name">Asr</span>
+                        <span class="prayer-value">${dayData.timings.Asr}</span>
+                    </div>
+                    <div class="prayer-time-weekly">
+                        <span class="prayer-name">Maghrib</span>
+                        <span class="prayer-value">${dayData.timings.Maghrib}</span>
+                    </div>
+                    <div class="prayer-time-weekly">
+                        <span class="prayer-name">Isha</span>
+                        <span class="prayer-value">${dayData.timings.Isha}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    weeklyPrayerTimesEl.innerHTML = html;
+    updateCollapsibleHeight(weeklyPrayerTimesEl);
+}
+
+function displayIslamicEvents() {
+    const currentYear = new Date().getFullYear();
+    const nextYear = currentYear + 1;
+    
+    const events = getIslamicEvents(currentYear, nextYear);
+    
+    // Filter to show only the next occurrence of each event
+    const uniqueEvents = [];
+    const seenEvents = new Set();
+    
+    events.forEach(event => {
+        if (!seenEvents.has(event.name)) {
+            seenEvents.add(event.name);
+            uniqueEvents.push(event);
+        }
+    });
+    
+    uniqueEvents.sort((a, b) => {
+        const aDate = new Date(a.sortDate);
+        const bDate = new Date(b.sortDate);
+        return aDate - bDate;
+    });
+    
+    console.log("Islamic Events:", uniqueEvents); // Debug log to verify events
+    
+    let html = '<div class="disclaimer">Note: Dates are approximate. Please confirm with local authorities or news for accurate Islamic event dates.</div>';
+    
+    if (uniqueEvents.length === 0) {
+        html += '<div class="islamic-event">No upcoming events available</div>';
+    } else {
+        uniqueEvents.forEach(event => {
+            html += `
+                <div class="islamic-event">
+                    <div class="event-name">${event.name}</div>
+                    <div class="event-date">${event.date} ${event.year}</div>
+                    <div class="event-desc">${event.description}</div>
+                </div>
+            `;
+        });
+    }
+    
+    islamicEventsEl.innerHTML = html;
+    updateCollapsibleHeight(islamicEventsEl);
+}
+
+function updateCollapsibleHeight(element) {
+    const section = element.closest('.collapsible-content');
+    if (section) {
+        // Force reflow to ensure correct scrollHeight
+        void section.offsetHeight; // Trigger reflow
+        if (section.previousElementSibling.querySelector('.collapse-icon').textContent === '-') {
+            section.style.maxHeight = section.scrollHeight + "px";
+        }
+    }
+}
+
+function getIslamicEvents(startYear, endYear) {
+    const events = [];
+    const currentDate = new Date();
+    
+    const eventTemplates = [
+        {
+            name: "Ramadan",
+            approximateStart: { month: 2, day: 1 }, // March 1
+            duration: "1 Month",
+            description: "Month of fasting, prayer, reflection and community"
+        },
+        {
+            name: "Eid al-Fitr",
+            approximateStart: { month: 2, day: 31 }, // March 31
+            duration: "1-2 Days",
+            description: "Festival of Breaking the Fast, marks the end of Ramadan"
+        },
+        {
+            name: "Hajj",
+            approximateStart: { month: 5, day: 5 }, // June 5
+            duration: "5-6 Days",
+            description: "Annual Islamic pilgrimage to Mecca"
+        },
+        {
+            name: "Eid al-Adha",
+            approximateStart: { month: 5, day: 10 }, // June 10
+            duration: "3-4 Days",
+            description: "Festival of Sacrifice, marks the end of Hajj"
+        },
+        {
+            name: "Islamic New Year",
+            approximateStart: { month: 5, day: 28 }, // June 28
+            duration: "1 Day",
+            description: "First day of Muharram, the first month in the Islamic calendar"
+        },
+        {
+            name: "Ashura",
+            approximateStart: { month: 6, day: 7 }, // July 7
+            duration: "1 Day",
+            description: "10th day of Muharram, a day of fasting for many Muslims"
+        },
+        {
+            name: "Mawlid al-Nabi",
+            approximateStart: { month: 8, day: 5 }, // September 5
+            duration: "1 Day",
+            description: "Observance of the birthday of Islamic prophet Muhammad"
+        }
+    ];
+    
+    // Include the next occurrence of each event
+    eventTemplates.forEach(event => {
+        let eventDate;
+        let year = startYear;
+        
+        // Try current year
+        eventDate = new Date(year, event.approximateStart.month, event.approximateStart.day);
+        if (eventDate < currentDate) {
+            // If past, try next year
+            year = endYear;
+            eventDate = new Date(year, event.approximateStart.month, event.approximateStart.day);
+        }
+        
+        const dateStr = new Intl.DateTimeFormat('en-US', {
+            day: 'numeric',
+            month: 'short'
+        }).format(eventDate);
+        
+        events.push({
+            name: event.name,
+            date: dateStr,
+            year: year,
+            sortDate: eventDate,
+            description: event.description
+        });
+    });
+    
+    return events;
+}
+
 function startPrayerTimeChecker() {
-    // Clear any existing interval
     if (prayerCheckInterval) {
         clearInterval(prayerCheckInterval);
     }
     
-    // Check every minute for prayer times
     prayerCheckInterval = setInterval(checkForPrayerTime, 60000);
-    
-    // Also check immediately
     checkForPrayerTime();
 }
 
@@ -326,15 +393,13 @@ function checkForPrayerTime() {
     const now = new Date();
     const currentTime = formatTime(now);
     
-    // Check each prayer time
     for (const prayer in prayerTimings) {
         if (['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'].includes(prayer)) {
             const prayerTime = prayerTimings[prayer];
             
-            // Check if current time matches prayer time (within 1 minute)
-            if (timesMatch(currentTime, prayerTime)) {
+            if (timesMatch(currentTime, prayerTime) && prayerTime !== "N/A") {
                 showPrayerNotification(prayer, prayerTime);
-                return; // Only show one notification at a time
+                return;
             }
         }
     }
@@ -347,7 +412,6 @@ function formatTime(date) {
 }
 
 function timesMatch(time1, time2) {
-    // Simple comparison of HH:MM strings
     return time1 === time2;
 }
 
@@ -394,11 +458,15 @@ function clearStatus() {
     statusMessageEl.textContent = "";
 }
 
+function requestNotificationPermission() {
+    if ('Notification' in window) {
+        Notification.requestPermission();
+    }
+}
+
 window.addEventListener('beforeunload', () => {
-    if (watchId) navigator.geolocation.clearWatch(watchId);
-    if (orientationId) window.removeEventListener('deviceorientation', handleOrientation);
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
     if (prayerCheckInterval) clearInterval(prayerCheckInterval);
 });
 
 window.addEventListener('load', init);
+window.addEventListener('load', requestNotificationPermission);
